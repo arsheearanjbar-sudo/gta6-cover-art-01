@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Neon Sunset Cover Studio</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<main class="studio">
+  <section class="panel-controls" aria-label="Cover controls">
+    <h1>Neon Sunset<br>Cover Studio</h1>
+    <p class="intro">Your photos, three panels, one poster. Pick a size, fill the panels, write the caption, export the PNG.</p>
+
+    <fieldset class="control-group">
+      <legend>Post size</legend>
+      <div class="choices" id="sizeChoices">
+        <label><input type="radio" name="size" value="1080x1080" checked> Square <span>1080 × 1080</span></label>
+        <label><input type="radio" name="size" value="1080x1350"> Portrait <span>1080 × 1350</span></label>
+        <label><input type="radio" name="size" value="1920x1080"> Wide <span>1920 × 1080</span></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="control-group">
+      <legend>Colour grade</legend>
+      <div class="choices grades" id="gradeChoices">
+        <button type="button" data-grade="sunset" class="grade-button grade-sunset is-active">Sunset</button>
+        <button type="button" data-grade="neon" class="grade-button grade-neon">Neon Nights</button>
+        <button type="button" data-grade="dusk" class="grade-button grade-dusk">Palm Dusk</button>
+        <button type="button" data-grade="mono" class="grade-button grade-mono">Mono</button>
+      </div>
+    </fieldset>
+
+    <fieldset class="control-group">
+      <legend>Panels <span class="hint">click a panel in the preview to select it</span></legend>
+      <ol class="panel-list" id="panelList">
+        <li><button type="button" data-panel="0" class="panel-button is-selected">Hero panel</button></li>
+        <li><button type="button" data-panel="1" class="panel-button">Top panel</button></li>
+        <li><button type="button" data-panel="2" class="panel-button">Bottom panel</button></li>
+      </ol>
+      <label class="file-label">Photo for the selected panel
+        <input id="photoInput" type="file" accept="image/*">
+      </label>
+      <div class="sample-row">
+        <span>Or try a sample:</span>
+        <button type="button" data-sample="boulevard" class="sample-button">Boulevard</button>
+        <button type="button" data-sample="pier" class="sample-button">Pier</button>
+      </div>
+      <label class="slider-label">Zoom <input id="zoomRange" type="range" min="1" max="2.5" step="0.05" value="1"></label>
+      <button id="fillAllButton" type="button" class="secondary-button">Use this photo in all panels</button>
+      <p class="hint">Drag on the preview to move the selected photo.</p>
+    </fieldset>
+
+    <fieldset class="control-group">
+      <legend>Lettering</legend>
+      <label>Caption <input id="captionInput" type="text" maxlength="24" value="Sunset Heist"></label>
+      <label>Tagline <input id="taglineInput" type="text" maxlength="32" value="A Neon Sunset Story"></label>
+    </fieldset>
+
+    <button id="exportButton" type="button" class="export-button">Export PNG</button>
+    <p id="statusLine" role="status"></p>
+    <p class="credit">Sample photos were made with an image model for make.fun and are free to use. Your own photos never leave this machine.</p>
+  </section>
+
+  <section class="preview-column" aria-label="Live preview">
+    <div class="preview-wrap" id="previewWrap">
+      <canvas id="previewCanvas" width="1080" height="1080" aria-label="The cover preview"></canvas>
+      <div id="selectionOverlay" class="selection-overlay" hidden></div>
+    </div>
+    <p class="preview-hint">Live preview — what you see is the PNG you export.</p>
+  </section>
+</main>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
