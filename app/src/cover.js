@@ -1,6 +1,7 @@
-// Draws the multi-panel GTA-style cover: three photo panels with diagonal white gutters,
-// a colour grade, and bold Anton caption lettering. Pure canvas, no network, no fonts
-// beyond the Anton file shipped under app/fonts/.
+// Paints the three-panel GTA-style cover: a hero panel and two stacked panels
+// with diagonal white gutters, a colour grade, and bold Anton lettering that
+// lives on its own dark strip below the photos — never on top of a face.
+// Pure canvas, no network, no fonts beyond the Anton file under app/fonts/.
 
 /** The three post sizes the app exports, keyed by their label. */
 export const EXPORT_SIZES = {
@@ -9,37 +10,52 @@ export const EXPORT_SIZES = {
   '1920x1080': [1920, 1080],
 };
 
-/** The colour grades: a wash over the panels plus a vignette. */
+/**
+ * The colour grades: a diagonal wash over the panels plus a sun glow.
+ * Neon Nights keeps its magenta strong and its cyan wash light (0.14) so skin
+ * stays warm — the old 0.30 cyan wash turned hair green-teal.
+ */
 export const GRADES = {
   sunset: { name: 'Sunset', wash: ['rgba(255, 122, 60, 0.28)', 'rgba(200, 30, 120, 0.42)'], glow: 'rgba(255, 196, 92, 0.55)' },
-  neon: { name: 'Neon Nights', wash: ['rgba(55, 224, 255, 0.30)', 'rgba(255, 79, 168, 0.40)'], glow: 'rgba(55, 224, 255, 0.45)' },
+  neon: { name: 'Neon Nights', wash: ['rgba(55, 224, 255, 0.14)', 'rgba(255, 79, 168, 0.40)'], glow: 'rgba(255, 79, 168, 0.42)' },
   dusk: { name: 'Palm Dusk', wash: ['rgba(120, 60, 200, 0.30)', 'rgba(255, 170, 60, 0.30)'], glow: 'rgba(255, 190, 110, 0.40)' },
   mono: { name: 'Mono', wash: ['rgba(255, 255, 255, 0.00)', 'rgba(0, 0, 0, 0.18)'], glow: 'rgba(255, 255, 255, 0.25)' },
 };
 
+/** The same rgba colour with its alpha dropped to zero, for glow falloff. */
+function fadeToClear(rgba) {
+  const m = rgba.match(/^rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,[\d.]+\s*\)$/);
+  if (!m) return 'rgba(0, 0, 0, 0)';
+  return `rgba(${m[1]}, ${m[2]}, ${m[3]}, 0)`;
+}
+
 /**
- * The three panel polygons for a cover of this size, plus the caption band.
- * The hero panel takes the left; two panels stack on the right. The hero's
- * right edge slants, so the white gutter between the panels runs diagonally.
+ * The three panel polygons for a cover of this size, plus the caption strip.
+ * The bottom 16% of the canvas is reserved for the caption strip, so the
+ * panels only ever span the top 84%. The hero panel takes the left; two
+ * panels stack on the right, and the hero's right edge slants so the white
+ * gutter between the panels runs diagonally.
  */
 export function layoutPanels(width, height) {
+  const stripH = Math.round(height * 0.16);
+  const photoH = height - stripH;
   const wide = width > height;
   const heroTop = (wide ? 0.46 : 0.58) * width;
   const heroBottom = heroTop - 0.04 * width;
   const gutter = Math.max(6, Math.round(width * 0.008));
-  const midY = 0.5 * height;
+  const midY = 0.5 * photoH;
   const heroMid = heroTop - 0.04 * width * 0.5;
   const panels = [
-    [[0, 0], [heroTop, 0], [heroBottom, height], [0, height]],
+    [[0, 0], [heroTop, 0], [heroBottom, photoH], [0, photoH]],
     [[heroTop + gutter, 0], [width, 0], [width, midY], [heroMid + gutter, midY]],
-    [[heroMid + gutter, midY + gutter], [width, midY + gutter], [width, height], [heroBottom + gutter, height]],
+    [[heroMid + gutter, midY + gutter], [width, midY + gutter], [width, photoH], [heroBottom + gutter, photoH]],
   ];
-  const band = { x: 0, y: height * 0.80, width, height: height * 0.20 };
+  const band = { x: 0, y: photoH, width, height: stripH };
   const seams = [
-    [[heroTop, 0], [heroBottom, height]],
+    [[heroTop, 0], [heroBottom, photoH]],
     [[heroMid, midY], [width, midY]],
   ];
-  return { panels, band, seams, gutter };
+  return { panels, band, seams, gutter, stripH };
 }
 
 /** Ray-casting point-in-polygon test, for picking a panel under the pointer. */
@@ -115,7 +131,7 @@ function applyGrade(ctx, width, height, grade) {
     width * 0.74, height * 0.16, width * 0.34,
   );
   glow.addColorStop(0, grade.glow);
-  glow.addColorStop(1, 'rgba(255, 196, 92, 0)');
+  glow.addColorStop(1, fadeToClear(grade.glow));
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, width, height);
   const vignette = ctx.createRadialGradient(
@@ -128,7 +144,7 @@ function applyGrade(ctx, width, height, grade) {
   ctx.fillRect(0, 0, width, height);
 }
 
-/** Splits a caption into at most two lines that fit the cover width. */
+/** Greedy word wrap into at most two lines that fit the given width. */
 function wrapCaption(ctx, text, maxWidth) {
   const words = text.split(/\s+/).filter(Boolean);
   const lines = [];
@@ -151,13 +167,14 @@ function wrapCaption(ctx, text, maxWidth) {
   return lines.slice(0, 2);
 }
 
-/** The tagline up top and the big caption across the foot of the cover. */
+/** The tagline up top and the big caption centred in its own strip. */
 function drawCaptionLettering(ctx, width, height, band, caption, tagline) {
-  const shade = ctx.createLinearGradient(0, band.y - height * 0.06, 0, height);
-  shade.addColorStop(0, 'rgba(8, 3, 16, 0)');
-  shade.addColorStop(1, 'rgba(8, 3, 16, 0.88)');
-  ctx.fillStyle = shade;
-  ctx.fillRect(0, band.y - height * 0.06, width, height - band.y + height * 0.06);
+  // The strip: a solid dark panel with a magenta rule on its top edge. The
+  // caption lives inside it, so it can never cover a face in the photos.
+  ctx.fillStyle = '#12061c';
+  ctx.fillRect(band.x, band.y, band.width, band.height);
+  ctx.fillStyle = '#ff4fa8';
+  ctx.fillRect(band.x, band.y, band.width, 4);
 
   const tag = tagline.trim().toUpperCase();
   if (tag) {
@@ -176,11 +193,18 @@ function drawCaptionLettering(ctx, width, height, band, caption, tagline) {
   }
 
   const text = caption.trim().toUpperCase() || 'SUNSET HEIST';
-  let size = Math.round(height * 0.115);
-  ctx.font = `${size}px Anton, "Arial Black", sans-serif`;
   const maxWidth = width * 0.92;
+  const maxBlockH = band.height * 0.86;
+  let size = Math.round(band.height * 0.55);
+  ctx.font = `${size}px Anton, "Arial Black", sans-serif`;
   let lines = wrapCaption(ctx, text, maxWidth);
-  while ((lines.length > 2 || lines.some((l) => ctx.measureText(l).width > maxWidth)) && size > 24) {
+  // Shrink until the caption fits the strip in both directions: at most two
+  // lines across, and the whole block inside 86% of the strip height.
+  while (size > 24) {
+    const lineHeight = size * 1.02;
+    const tooWide = lines.length > 2 || lines.some((l) => ctx.measureText(l).width > maxWidth);
+    const tooTall = lines.length * lineHeight > maxBlockH;
+    if (!tooWide && !tooTall) break;
     size -= 4;
     ctx.font = `${size}px Anton, "Arial Black", sans-serif`;
     lines = wrapCaption(ctx, text, maxWidth);
@@ -194,9 +218,10 @@ function drawCaptionLettering(ctx, width, height, band, caption, tagline) {
   ctx.shadowBlur = size * 0.18;
   ctx.shadowOffsetY = size * 0.05;
   const lineHeight = size * 1.02;
-  const firstBaseline = height - height * 0.045 - (lines.length - 1) * lineHeight;
+  // Centre the text block vertically inside the strip.
+  const blockTop = band.y + (band.height - lines.length * lineHeight) / 2;
   lines.forEach((lineText, i) => {
-    const baseline = firstBaseline + i * lineHeight;
+    const baseline = blockTop + lineHeight * 0.8 + i * lineHeight;
     ctx.strokeText(lineText, width / 2, baseline);
     ctx.fillText(lineText, width / 2, baseline);
   });

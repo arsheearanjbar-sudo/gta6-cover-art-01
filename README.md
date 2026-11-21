@@ -8,11 +8,18 @@ Turn your photos and a caption into a three-panel GTA-style cover poster: a hero
 
 ## What it does
 
-- **Your photos, three panels.** Load a photo from your machine into each panel, or use one photo for all three. Drag a photo to move it, zoom it with the slider.
-- **Caption lettering.** Write the caption and tagline; the poster sets them in Anton (bundled under `app/fonts/`, SIL OFL) with a heavy outline and drop shadow.
+- **Your photos, three panels.** Load a photo from your machine into each panel, or use one photo for all three. Drag a photo to move it, zoom it with the slider. Undo (button or Ctrl+Z) steps back the last change; the Remove button empties the selected panel.
+- **Caption lettering.** Write the caption and tagline; the poster sets them in Anton (bundled under `app/fonts/`, SIL OFL) with a heavy outline and drop shadow. The caption sits on its own dark strip below the photos, so it never covers a face.
 - **Colour grades.** Sunset, Neon Nights, Palm Dusk and Mono — a wash, a sun glow and a vignette over the panels.
 - **Three post sizes.** Square 1080×1080, Portrait 1080×1350, Wide 1920×1080. The panel layout adapts to each.
-- **Offline, private.** A static page — no build step, no network request. Photos are read on your own machine and never uploaded. The two bundled sample photos (`app/samples/`) were made with an image model for make.fun and are free to use.
+- **Offline, private.** A static page — no build step, no network request. Photos are read on your own machine and never uploaded. The four bundled sample photos (`app/samples/`) — Boulevard, Pier, Rooftop and Skate — were made with an image model for make.fun and are free to use.
+
+## What changed in v2 (21 November 2026)
+
+- The caption moved off the photos onto its own dark strip with a magenta rule, so no face ever sits under the lettering.
+- Two new sample photos, Rooftop and Skate, so the four screenshots show different people instead of the same two.
+- Neon Nights lost its cyan cast on skin (cyan wash 0.30 → 0.14, glow now pink-magenta).
+- Undo (button and Ctrl+Z, up to 30 steps) and per-panel Remove; screenshot scenes frame each face by its own focus point.
 
 ## Run
 

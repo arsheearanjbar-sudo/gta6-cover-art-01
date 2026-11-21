@@ -1,5 +1,10 @@
 // Neon Sunset Cover Studio — an entry for make.fun's "Make GTA 6 Cover Art" bounty.
 //
+// v2 (21 November 2026): the caption moved off the photos onto its own strip;
+// two new samples (Rooftop, Skate); Neon Nights lost its cyan cast on skin;
+// undo and per-panel remove; screenshot scenes frame each face by its own
+// focus point. Written in this session from the v2 fix list, not patched over v1.
+//
 // The app is this directory's app/ folder: plain static files a desktop browser loads
 // offline. app/index.html is the studio; app/src/cover.js paints the three-panel poster
 // (diagonal white gutters, a colour grade, bold Anton lettering) onto a canvas; the

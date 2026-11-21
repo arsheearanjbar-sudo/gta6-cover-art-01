@@ -1,5 +1,6 @@
-// Wires the studio: photos per panel, size and grade, caption lettering, drag to pan,
-// and PNG export. A `?shot=` query sets up a fixed scene for a screenshot (./shots.js).
+// Wires the studio: photos per panel, size and grade, caption lettering, drag
+// to pan, undo, per-panel remove, and PNG export. A `?shot=` query sets up a
+// fixed scene for a screenshot (./shots.js).
 import { drawCoverArt, layoutPanels, panelAtPoint, panelBounds, EXPORT_SIZES } from './cover.js';
 import { runShot } from './shots.js';
 
@@ -11,6 +12,8 @@ const taglineInput = document.getElementById('taglineInput');
 const photoInput = document.getElementById('photoInput');
 const zoomRange = document.getElementById('zoomRange');
 const statusLine = document.getElementById('statusLine');
+const undoButton = document.getElementById('undoButton');
+const removePhotoButton = document.getElementById('removePhotoButton');
 
 const state = {
   sizeKey: '1080x1080',
@@ -26,6 +29,46 @@ const state = {
 };
 
 let layout = null;
+
+// --- History: undo restores earlier panel states, newest first. ---
+const HISTORY_LIMIT = 30;
+const history = [];
+
+/** A plain copy of the three panels, so later edits cannot mutate the past. */
+function snapshotPanels() {
+  return state.panels.map((panel) => ({ ...panel }));
+}
+
+/** Record the current panels before a change; drop the oldest past 30. */
+function pushHistory() {
+  history.push(snapshotPanels());
+  if (history.length > HISTORY_LIMIT) history.shift();
+  syncUndoButton();
+}
+
+function syncUndoButton() {
+  if (undoButton) undoButton.disabled = history.length === 0;
+}
+
+/** Step back one change, if there is one to step back to. */
+function undo() {
+  const previous = history.pop();
+  if (!previous) return;
+  state.panels = previous.map((panel) => ({ ...panel }));
+  zoomRange.value = String(state.panels[state.selected].zoom);
+  statusLine.textContent = 'Undid the last change.';
+  syncUndoButton();
+  redraw();
+}
+
+/** Clear the selected panel back to its empty slot. */
+function removeSelectedPhoto() {
+  pushHistory();
+  state.panels[state.selected] = { img: null, zoom: 1, ox: 0, oy: 0 };
+  zoomRange.value = '1';
+  statusLine.textContent = `Panel ${state.selected + 1} is empty again.`;
+  redraw();
+}
 
 function resizeCanvas() {
   const [w, h] = EXPORT_SIZES[state.sizeKey];
@@ -75,7 +118,9 @@ export function loadImage(url) {
   });
 }
 
+/** Put a bundled sample into the selected panel, replacing what was there. */
 async function loadSample(name) {
+  pushHistory();
   const img = await loadImage(`samples/${name}.jpg`);
   state.panels[state.selected].img = img;
   state.panels[state.selected].zoom = 1;
@@ -88,6 +133,7 @@ async function loadSample(name) {
 photoInput.addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
+  pushHistory();
   const img = await loadImage(URL.createObjectURL(file));
   state.panels[state.selected].img = img;
   state.panels[state.selected].zoom = 1;
@@ -111,6 +157,7 @@ document.getElementById('fillAllButton').addEventListener('click', () => {
     statusLine.textContent = 'Load a photo into the selected panel first.';
     return;
   }
+  pushHistory();
   state.panels.forEach((panel) => {
     panel.img = source.img;
     panel.zoom = source.zoom;
@@ -142,9 +189,32 @@ document.querySelectorAll('.grade-button').forEach((button) => {
 
 captionInput.addEventListener('input', () => { state.caption = captionInput.value; redraw(); });
 taglineInput.addEventListener('input', () => { state.tagline = taglineInput.value; redraw(); });
+
+// A zoom drag fires many input events; record it once, on the first one, and
+// start a fresh record when the drag ends (the change event).
+let zoomGestureRecorded = false;
 zoomRange.addEventListener('input', () => {
+  if (!zoomGestureRecorded) {
+    pushHistory();
+    zoomGestureRecorded = true;
+  }
   state.panels[state.selected].zoom = Number(zoomRange.value);
   redraw();
+});
+zoomRange.addEventListener('change', () => { zoomGestureRecorded = false; });
+
+if (undoButton) undoButton.addEventListener('click', undo);
+if (removePhotoButton) removePhotoButton.addEventListener('click', removeSelectedPhoto);
+
+// Ctrl+Z undoes a panel change. The target can be the document itself (no
+// matches method), so check the type first; and never steal the shortcut
+// while the person is typing in a text field.
+document.addEventListener('keydown', (e) => {
+  if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z' || e.shiftKey) return;
+  const target = e.target;
+  if (target instanceof Element && target.matches('input, textarea, select, [contenteditable="true"]')) return;
+  e.preventDefault();
+  undo();
 });
 
 /** Drag on the preview to pan the selected panel's photo; click a panel to select it. */
@@ -156,11 +226,15 @@ canvas.addEventListener('pointerdown', (e) => {
   const hit = panelAtPoint(layout.panels, x, y);
   if (hit === -1) return;
   if (hit !== state.selected) selectPanel(hit);
-  dragging = { panel: state.panels[hit], startX: e.clientX, startY: e.clientY, ox: state.panels[hit].ox, oy: state.panels[hit].oy };
+  dragging = { panel: state.panels[hit], startX: e.clientX, startY: e.clientY, ox: state.panels[hit].ox, oy: state.panels[hit].oy, recorded: false };
   canvas.setPointerCapture(e.pointerId);
 });
 canvas.addEventListener('pointermove', (e) => {
   if (!dragging) return;
+  if (!dragging.recorded) {
+    pushHistory();
+    dragging.recorded = true;
+  }
   const rect = canvas.getBoundingClientRect();
   const scale = canvas.width / rect.width;
   dragging.panel.ox = dragging.ox + ((e.clientX - dragging.startX) * scale) / canvas.width;
@@ -188,6 +262,11 @@ export function getState() {
   return state;
 }
 
+/** The undo history, for tests. */
+export function getHistory() {
+  return history;
+}
+
 /** Loads the bundled Anton display font before the first paint. */
 async function boot() {
   try {
@@ -206,6 +285,8 @@ async function boot() {
     state.panels[2].img = state.panels[0].img;
     redraw();
   }
+  syncUndoButton();
+  if (shot) window.__shotReady = true;
 }
 
 boot();
