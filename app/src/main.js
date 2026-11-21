@@ -1,292 +1,236 @@
-// Wires the studio: photos per panel, size and grade, caption lettering, drag
-// to pan, undo, per-panel remove, and PNG export. A `?shot=` query sets up a
-// fixed scene for a screenshot (./shots.js).
-import { drawCoverArt, layoutPanels, panelAtPoint, panelBounds, EXPORT_SIZES } from './cover.js';
-import { runShot } from './shots.js';
+// Neon Sunset Cover Studio — the editor wiring.
+//
+// Samples, your own photo, the four panels, the caption, the export sizes,
+// Undo (button and Ctrl+Z) and per-panel Remove. State is kept as plain
+// data so Undo can snapshot and restore it; images are reloaded from the
+// stored source (a sample name or a data URL) on restore.
 
-const canvas = document.getElementById('previewCanvas');
-const previewWrap = document.getElementById('previewWrap');
-const selectionOverlay = document.getElementById('selectionOverlay');
-const captionInput = document.getElementById('captionInput');
-const taglineInput = document.getElementById('taglineInput');
-const photoInput = document.getElementById('photoInput');
-const zoomRange = document.getElementById('zoomRange');
-const statusLine = document.getElementById('statusLine');
-const undoButton = document.getElementById('undoButton');
-const removePhotoButton = document.getElementById('removePhotoButton');
+import { drawCover, FOCUS_POINTS, SIZES } from "./cover.js";
+import { SHOTS, applyShot } from "./shots.js";
+
+const SAMPLE_NAMES = ["boulevard", "pier", "rooftop", "skate"];
+const PANEL_NAMES = ["Hero", "Panel 2", "Panel 3", "Panel 4"];
+const HISTORY_CAP = 30;
+
+const canvas = document.getElementById("cover");
+const captionInput = document.getElementById("captionInput");
+const panelList = document.getElementById("panelList");
+const undoBtn = document.getElementById("undoBtn");
+const exportBtn = document.getElementById("exportBtn");
+const photoInput = document.getElementById("photoInput");
 
 const state = {
-  sizeKey: '1080x1080',
-  grade: 'sunset',
-  caption: captionInput.value,
-  tagline: taglineInput.value,
+  size: "portrait",
+  caption: "NEON SUNSET",
+  panels: [null, null, null, null],
   selected: 0,
-  panels: [
-    { img: null, zoom: 1, ox: 0, oy: 0 },
-    { img: null, zoom: 1, ox: 0, oy: 0 },
-    { img: null, zoom: 1, ox: 0, oy: 0 },
-  ],
+  history: [],
 };
 
-let layout = null;
-
-// --- History: undo restores earlier panel states, newest first. ---
-const HISTORY_LIMIT = 30;
-const history = [];
-
-/** A plain copy of the three panels, so later edits cannot mutate the past. */
-function snapshotPanels() {
-  return state.panels.map((panel) => ({ ...panel }));
-}
-
-/** Record the current panels before a change; drop the oldest past 30. */
-function pushHistory() {
-  history.push(snapshotPanels());
-  if (history.length > HISTORY_LIMIT) history.shift();
-  syncUndoButton();
-}
-
-function syncUndoButton() {
-  if (undoButton) undoButton.disabled = history.length === 0;
-}
-
-/** Step back one change, if there is one to step back to. */
-function undo() {
-  const previous = history.pop();
-  if (!previous) return;
-  state.panels = previous.map((panel) => ({ ...panel }));
-  zoomRange.value = String(state.panels[state.selected].zoom);
-  statusLine.textContent = 'Undid the last change.';
-  syncUndoButton();
-  redraw();
-}
-
-/** Clear the selected panel back to its empty slot. */
-function removeSelectedPhoto() {
-  pushHistory();
-  state.panels[state.selected] = { img: null, zoom: 1, ox: 0, oy: 0 };
-  zoomRange.value = '1';
-  statusLine.textContent = `Panel ${state.selected + 1} is empty again.`;
-  redraw();
-}
-
-function resizeCanvas() {
-  const [w, h] = EXPORT_SIZES[state.sizeKey];
-  canvas.width = w;
-  canvas.height = h;
-}
-
-function redraw() {
-  resizeCanvas();
-  layout = drawCoverArt(canvas, state);
-  moveSelectionOverlay();
-}
-
-function moveSelectionOverlay() {
-  if (!layout || document.body.classList.contains('shot-cover')) {
-    selectionOverlay.hidden = true;
-    return;
-  }
-  const rect = canvas.getBoundingClientRect();
-  const wrapRect = previewWrap.getBoundingClientRect();
-  const bounds = panelBounds(layout.panels, state.selected);
-  const scaleX = rect.width / canvas.width;
-  const scaleY = rect.height / canvas.height;
-  selectionOverlay.hidden = false;
-  selectionOverlay.style.left = `${rect.left - wrapRect.left + bounds.x * scaleX}px`;
-  selectionOverlay.style.top = `${rect.top - wrapRect.top + bounds.y * scaleY}px`;
-  selectionOverlay.style.width = `${bounds.width * scaleX}px`;
-  selectionOverlay.style.height = `${bounds.height * scaleY}px`;
-}
-
-function selectPanel(index) {
-  state.selected = index;
-  document.querySelectorAll('.panel-button').forEach((button) => {
-    button.classList.toggle('is-selected', Number(button.dataset.panel) === index);
-  });
-  zoomRange.value = String(state.panels[index].zoom);
-  moveSelectionOverlay();
-}
-
-/** Loads an image from a URL, resolving once it can be drawn. */
-export function loadImage(url) {
+/** Load an image from a sample name or a data URL. */
+function loadImage(src) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = url;
+    img.onerror = () => reject(new Error(`could not load ${src.slice(0, 40)}`));
+    img.src = src.startsWith("data:") ? src : `samples/${src}.jpg`;
   });
 }
 
-/** Put a bundled sample into the selected panel, replacing what was there. */
-async function loadSample(name) {
-  pushHistory();
-  const img = await loadImage(`samples/${name}.jpg`);
-  state.panels[state.selected].img = img;
-  state.panels[state.selected].zoom = 1;
-  state.panels[state.selected].ox = 0;
-  state.panels[state.selected].oy = 0;
-  zoomRange.value = '1';
-  redraw();
+/** A panel as plain data: { src, focusY } or null. */
+function snapshotPanels() {
+  return state.panels.map((p) => (p ? { src: p.src, focusY: p.focusY } : null));
 }
 
-photoInput.addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
+function pushHistory() {
+  state.history.push({
+    size: state.size,
+    caption: state.caption,
+    panels: snapshotPanels(),
+  });
+  if (state.history.length > HISTORY_CAP) state.history.shift();
+}
+
+/** Restore a snapshot, reloading its images. */
+async function restore(snapshot) {
+  state.size = snapshot.size;
+  state.caption = snapshot.caption;
+  captionInput.value = snapshot.caption;
+  state.panels = await Promise.all(
+    snapshot.panels.map(async (p) => {
+      if (!p) return null;
+      const img = await loadImage(p.src);
+      return { img, src: p.src, focusY: p.focusY };
+    }),
+  );
+  render();
+}
+
+async function undo() {
+  const snapshot = state.history.pop();
+  if (!snapshot) return;
+  await restore(snapshot);
+}
+
+/** Whether the key event's target is a field the user is typing in. */
+function isTypingTarget(event) {
+  const target = event.target;
+  if (!(target instanceof Element)) return false;
+  if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return true;
+  if (target instanceof HTMLElement && target.isContentEditable) return true;
+  return false;
+}
+
+function render() {
+  drawCover(canvas, state);
+  undoBtn.disabled = state.history.length === 0;
+  document.querySelectorAll(".size").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.size === state.size));
+  });
+  renderPanelList();
+}
+
+function renderPanelList() {
+  panelList.replaceChildren();
+  state.panels.forEach((panel, i) => {
+    const item = document.createElement("li");
+    item.className = "panel-card";
+    item.setAttribute("aria-pressed", String(state.selected === i));
+    item.addEventListener("click", () => {
+      state.selected = i;
+      renderPanelList();
+    });
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = PANEL_NAMES[i];
+    const photo = document.createElement("span");
+    photo.className = "photo";
+    photo.textContent = panel ? photoLabel(panel) : "Empty — neon";
+    const remove = document.createElement("button");
+    remove.className = "remove";
+    remove.type = "button";
+    remove.textContent = "Remove";
+    remove.disabled = !panel;
+    remove.addEventListener("click", (event) => {
+      event.stopPropagation();
+      removePanel(i);
+    });
+    item.append(name, photo, remove);
+    panelList.append(item);
+  });
+}
+
+function photoLabel(panel) {
+  if (panel.src.startsWith("data:")) return "Your photo";
+  return panel.src.charAt(0).toUpperCase() + panel.src.slice(1);
+}
+
+async function fillSelected(src, focusY) {
   pushHistory();
-  const img = await loadImage(URL.createObjectURL(file));
-  state.panels[state.selected].img = img;
-  state.panels[state.selected].zoom = 1;
-  state.panels[state.selected].ox = 0;
-  state.panels[state.selected].oy = 0;
-  zoomRange.value = '1';
-  statusLine.textContent = `Loaded ${file.name} into panel ${state.selected + 1}.`;
-  redraw();
-});
+  const img = await loadImage(src);
+  state.panels[state.selected] = { img, src, focusY };
+  render();
+}
 
-document.querySelectorAll('.sample-button').forEach((button) => {
-  button.addEventListener('click', async () => {
-    await loadSample(button.dataset.sample);
-    statusLine.textContent = `Sample “${button.dataset.sample}” loaded into panel ${state.selected + 1}.`;
-  });
-});
-
-document.getElementById('fillAllButton').addEventListener('click', () => {
-  const source = state.panels[state.selected];
-  if (!source.img) {
-    statusLine.textContent = 'Load a photo into the selected panel first.';
-    return;
-  }
+async function removePanel(i) {
+  if (!state.panels[i]) return;
   pushHistory();
-  state.panels.forEach((panel) => {
-    panel.img = source.img;
-    panel.zoom = source.zoom;
-    panel.ox = source.ox;
-    panel.oy = source.oy;
-  });
-  statusLine.textContent = 'One photo now fills all three panels.';
-  redraw();
-});
+  state.panels[i] = null;
+  render();
+}
 
-document.querySelectorAll('.panel-button').forEach((button) => {
-  button.addEventListener('click', () => selectPanel(Number(button.dataset.panel)));
-});
+function setCaption(text) {
+  if (text === state.caption) return;
+  pushHistory();
+  state.caption = text;
+  render();
+}
 
-document.querySelectorAll('input[name="size"]').forEach((radio) => {
-  radio.addEventListener('change', () => {
-    state.sizeKey = radio.value;
-    redraw();
-  });
-});
+function setSize(size) {
+  if (!SIZES[size] || size === state.size) return;
+  state.size = size;
+  render();
+}
 
-document.querySelectorAll('.grade-button').forEach((button) => {
-  button.addEventListener('click', () => {
-    state.grade = button.dataset.grade;
-    document.querySelectorAll('.grade-button').forEach((b) => b.classList.toggle('is-active', b === button));
-    redraw();
-  });
-});
-
-captionInput.addEventListener('input', () => { state.caption = captionInput.value; redraw(); });
-taglineInput.addEventListener('input', () => { state.tagline = taglineInput.value; redraw(); });
-
-// A zoom drag fires many input events; record it once, on the first one, and
-// start a fresh record when the drag ends (the change event).
-let zoomGestureRecorded = false;
-zoomRange.addEventListener('input', () => {
-  if (!zoomGestureRecorded) {
-    pushHistory();
-    zoomGestureRecorded = true;
-  }
-  state.panels[state.selected].zoom = Number(zoomRange.value);
-  redraw();
-});
-zoomRange.addEventListener('change', () => { zoomGestureRecorded = false; });
-
-if (undoButton) undoButton.addEventListener('click', undo);
-if (removePhotoButton) removePhotoButton.addEventListener('click', removeSelectedPhoto);
-
-// Ctrl+Z undoes a panel change. The target can be the document itself (no
-// matches method), so check the type first; and never steal the shortcut
-// while the person is typing in a text field.
-document.addEventListener('keydown', (e) => {
-  if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z' || e.shiftKey) return;
-  const target = e.target;
-  if (target instanceof Element && target.matches('input, textarea, select, [contenteditable="true"]')) return;
-  e.preventDefault();
-  undo();
-});
-
-/** Drag on the preview to pan the selected panel's photo; click a panel to select it. */
-let dragging = null;
-canvas.addEventListener('pointerdown', (e) => {
-  const rect = canvas.getBoundingClientRect();
-  const x = ((e.clientX - rect.left) / rect.width) * canvas.width;
-  const y = ((e.clientY - rect.top) / rect.height) * canvas.height;
-  const hit = panelAtPoint(layout.panels, x, y);
-  if (hit === -1) return;
-  if (hit !== state.selected) selectPanel(hit);
-  dragging = { panel: state.panels[hit], startX: e.clientX, startY: e.clientY, ox: state.panels[hit].ox, oy: state.panels[hit].oy, recorded: false };
-  canvas.setPointerCapture(e.pointerId);
-});
-canvas.addEventListener('pointermove', (e) => {
-  if (!dragging) return;
-  if (!dragging.recorded) {
-    pushHistory();
-    dragging.recorded = true;
-  }
-  const rect = canvas.getBoundingClientRect();
-  const scale = canvas.width / rect.width;
-  dragging.panel.ox = dragging.ox + ((e.clientX - dragging.startX) * scale) / canvas.width;
-  dragging.panel.oy = dragging.oy + ((e.clientY - dragging.startY) * scale) / canvas.height;
-  redraw();
-});
-canvas.addEventListener('pointerup', () => { dragging = null; });
-
-/** Exports the cover at its full post size as a PNG download. */
-document.getElementById('exportButton').addEventListener('click', () => {
-  redraw();
+function exportPng() {
   canvas.toBlob((blob) => {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `neon-sunset-cover-${state.sizeKey}.png`;
-    a.click();
-    statusLine.textContent = `Saved neon-sunset-cover-${state.sizeKey}.png`;
-  }, 'image/png');
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `neon-sunset-cover-${state.size}.png`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, "image/png");
+}
+
+document.querySelectorAll(".sample").forEach((button) => {
+  button.addEventListener("click", () => {
+    const name = button.dataset.sample;
+    fillSelected(name, FOCUS_POINTS[name] ?? 0.5).catch(() => {});
+  });
 });
 
-window.addEventListener('resize', moveSelectionOverlay);
+photoInput.addEventListener("change", () => {
+  const file = photoInput.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const dataUrl = String(reader.result);
+    fillSelected(dataUrl, 0.5).catch(() => {});
+  };
+  reader.readAsDataURL(file);
+  photoInput.value = "";
+});
 
-/** The current state, for the shot scenes and for tests. */
-export function getState() {
-  return state;
+document.querySelectorAll(".size").forEach((button) => {
+  button.addEventListener("click", () => setSize(button.dataset.size));
+});
+
+captionInput.addEventListener("input", () => setCaption(captionInput.value));
+
+undoBtn.addEventListener("click", () => {
+  undo().catch(() => {});
+});
+
+exportBtn.addEventListener("click", exportPng);
+
+document.addEventListener("keydown", (event) => {
+  const isUndo = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z";
+  if (!isUndo || isTypingTarget(event)) return;
+  event.preventDefault();
+  undo().catch(() => {});
+});
+
+/** Fill the four panels with a different sample each, hero first. */
+async function fillAllSamples(hero) {
+  const order = [hero, ...SAMPLE_NAMES.filter((name) => name !== hero)];
+  state.panels = await Promise.all(
+    order.map(async (name) => {
+      const img = await loadImage(name);
+      return { img, src: name, focusY: FOCUS_POINTS[name] ?? 0.5 };
+    }),
+  );
 }
 
-/** The undo history, for tests. */
-export function getHistory() {
-  return history;
-}
-
-/** Loads the bundled Anton display font before the first paint. */
-async function boot() {
+// Start: the Anton face, then the shot from the URL (for screenshots) or
+// the default cover with every panel filled.
+async function start() {
   try {
-    await document.fonts.load('100px Anton');
-    await document.fonts.ready;
+    await document.fonts.load('40px Anton');
   } catch {
-    // Anton is bundled; if it fails to load the canvas falls back to a system bold face.
+    // The caption falls back to Arial Black; the cover still draws.
   }
-  const query = new URLSearchParams(location.search);
-  const shot = query.get('shot');
+  const shotId = new URLSearchParams(location.search).get("shot");
+  const shot = SHOTS.find((s) => s.id === shotId);
   if (shot) {
-    await runShot(shot, query, state, loadSample, redraw, selectPanel);
+    state.size = shot.size;
+    state.caption = shot.caption;
+    await applyShot(fillAllSamples, shot);
   } else {
-    await loadSample('boulevard');
-    state.panels[1].img = state.panels[0].img;
-    state.panels[2].img = state.panels[0].img;
-    redraw();
+    await fillAllSamples("boulevard");
   }
-  syncUndoButton();
-  if (shot) window.__shotReady = true;
+  render();
 }
 
-boot();
+start().catch(() => render());

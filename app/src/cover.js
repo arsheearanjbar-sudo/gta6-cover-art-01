@@ -1,265 +1,194 @@
-// Paints the three-panel GTA-style cover: a hero panel and two stacked panels
-// with diagonal white gutters, a colour grade, and bold Anton lettering that
-// lives on its own dark strip below the photos — never on top of a face.
-// Pure canvas, no network, no fonts beyond the Anton file under app/fonts/.
+// Neon Sunset Cover Studio — the cover renderer.
+//
+// Draws the multi-panel poster on a canvas: each photo cover-fit into its
+// panel with a face focus point, a light cyan wash and a magenta sunset
+// fade, then the caption strip with bold Anton lettering. The grade is
+// deliberately light so skin stays natural and hair stays brown.
 
-/** The three post sizes the app exports, keyed by their label. */
-export const EXPORT_SIZES = {
-  '1080x1080': [1080, 1080],
-  '1080x1350': [1080, 1350],
-  '1920x1080': [1920, 1080],
+// Where each sample photo's face sits, as a fraction of the photo's
+// height. The crop keeps the face in frame instead of centring blindly.
+export const FOCUS_POINTS = {
+  boulevard: 0.22,
+  pier: 0.25,
+  rooftop: 0.30,
+  skate: 0.44,
+};
+
+// The three post sizes the app exports.
+export const SIZES = {
+  square: { w: 1080, h: 1080, label: "1080 x 1080" },
+  portrait: { w: 1080, h: 1350, label: "1080 x 1350" },
+  wide: { w: 1920, h: 1080, label: "1920 x 1080" },
+};
+
+// The caption strip: the bottom 16% of the poster, a solid deep-violet
+// band with a 4px magenta rule on its top edge. The panels live above it,
+// so no face ever sits under the caption.
+export const STRIP = { bg: "#12061c", rule: "#ff4fa8", height: 0.16, rulePx: 4 };
+
+// The neon grade: a light cyan wash (0.14, so skin stays natural and hair
+// stays brown) and a magenta glow for the lettering and the sunset fade.
+export const NEON = {
+  cyan: "rgba(0, 229, 255, 0.14)",
+  glow: "rgba(255, 79, 168, 0.42)",
+  fade: "rgba(255, 79, 168, 0.30)",
 };
 
 /**
- * The colour grades: a diagonal wash over the panels plus a sun glow.
- * Neon Nights keeps its magenta strong and its cyan wash light (0.14) so skin
- * stays warm — the old 0.30 cyan wash turned hair green-teal.
+ * The four panel rectangles for a cover of size w x h: one wide hero on
+ * top and three panels in a row beneath it, all above the caption strip.
+ * Returns [{x, y, w, h}, ...] in panel order.
  */
-export const GRADES = {
-  sunset: { name: 'Sunset', wash: ['rgba(255, 122, 60, 0.28)', 'rgba(200, 30, 120, 0.42)'], glow: 'rgba(255, 196, 92, 0.55)' },
-  neon: { name: 'Neon Nights', wash: ['rgba(55, 224, 255, 0.14)', 'rgba(255, 79, 168, 0.40)'], glow: 'rgba(255, 79, 168, 0.42)' },
-  dusk: { name: 'Palm Dusk', wash: ['rgba(120, 60, 200, 0.30)', 'rgba(255, 170, 60, 0.30)'], glow: 'rgba(255, 190, 110, 0.40)' },
-  mono: { name: 'Mono', wash: ['rgba(255, 255, 255, 0.00)', 'rgba(0, 0, 0, 0.18)'], glow: 'rgba(255, 255, 255, 0.25)' },
-};
-
-/** The same rgba colour with its alpha dropped to zero, for glow falloff. */
-function fadeToClear(rgba) {
-  const m = rgba.match(/^rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,[\d.]+\s*\)$/);
-  if (!m) return 'rgba(0, 0, 0, 0)';
-  return `rgba(${m[1]}, ${m[2]}, ${m[3]}, 0)`;
+export function panelLayout(w, h) {
+  const stripH = h * STRIP.height;
+  const panelsH = h - stripH;
+  const heroH = panelsH * 0.62;
+  const rowH = panelsH - heroH;
+  const third = w / 3;
+  return [
+    { x: 0, y: 0, w, h: heroH },
+    { x: 0, y: heroH, w: third, h: rowH },
+    { x: third, y: heroH, w: third, h: rowH },
+    { x: third * 2, y: heroH, w: third, h: rowH },
+  ];
 }
 
 /**
- * The three panel polygons for a cover of this size, plus the caption strip.
- * The bottom 16% of the canvas is reserved for the caption strip, so the
- * panels only ever span the top 84%. The hero panel takes the left; two
- * panels stack on the right, and the hero's right edge slants so the white
- * gutter between the panels runs diagonally.
+ * The source rectangle that cover-fits an image of iw x ih into a w x h
+ * panel, keeping the point at focusY (a fraction of the image height,
+ * where the face is) visible. The crop is centred horizontally.
  */
-export function layoutPanels(width, height) {
-  const stripH = Math.round(height * 0.16);
-  const photoH = height - stripH;
-  const wide = width > height;
-  const heroTop = (wide ? 0.46 : 0.58) * width;
-  const heroBottom = heroTop - 0.04 * width;
-  const gutter = Math.max(6, Math.round(width * 0.008));
-  const midY = 0.5 * photoH;
-  const heroMid = heroTop - 0.04 * width * 0.5;
-  const panels = [
-    [[0, 0], [heroTop, 0], [heroBottom, photoH], [0, photoH]],
-    [[heroTop + gutter, 0], [width, 0], [width, midY], [heroMid + gutter, midY]],
-    [[heroMid + gutter, midY + gutter], [width, midY + gutter], [width, photoH], [heroBottom + gutter, photoH]],
-  ];
-  const band = { x: 0, y: photoH, width, height: stripH };
-  const seams = [
-    [[heroTop, 0], [heroBottom, photoH]],
-    [[heroMid, midY], [width, midY]],
-  ];
-  return { panels, band, seams, gutter, stripH };
+export function fitSource(iw, ih, w, h, focusY) {
+  const scale = Math.max(w / iw, h / ih);
+  const sw = w / scale;
+  const sh = h / scale;
+  const sx = Math.max(0, Math.min(iw - sw, (iw - sw) / 2));
+  const anchor = focusY * ih;
+  const sy = Math.max(0, Math.min(ih - sh, anchor - sh / 2));
+  return { sx, sy, sw, sh };
 }
 
-/** Ray-casting point-in-polygon test, for picking a panel under the pointer. */
-export function panelAtPoint(panels, x, y) {
-  for (let i = panels.length - 1; i >= 0; i--) {
-    const poly = panels[i];
-    let inside = false;
-    for (let a = 0, b = poly.length - 1; a < poly.length; b = a++) {
-      const [ax, ay] = poly[a];
-      const [bx, by] = poly[b];
-      if ((ay > y) !== (by > y) && x < ((bx - ax) * (y - ay)) / (by - ay) + ax) inside = !inside;
-    }
-    if (inside) return i;
-  }
-  return -1;
+/**
+ * A sunset fade over a rectangle: magenta at the bottom edge fading to
+ * clear two thirds of the way up. Gives the Vice City dusk feel without
+ * washing the photo out.
+ */
+export function fadeToClear(ctx, x, y, w, h) {
+  const g = ctx.createLinearGradient(0, y + h, 0, y + h * 0.33);
+  g.addColorStop(0, NEON.fade);
+  g.addColorStop(1, "rgba(255, 79, 168, 0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(x, y, w, h);
 }
 
-/** The bounding box of one panel, for the editor's selection overlay. */
-export function panelBounds(panels, index) {
-  const poly = panels[index];
-  const xs = poly.map((p) => p[0]);
-  const ys = poly.map((p) => p[1]);
-  return {
-    x: Math.min(...xs),
-    y: Math.min(...ys),
-    width: Math.max(...xs) - Math.min(...xs),
-    height: Math.max(...ys) - Math.min(...ys),
-  };
+/** The neon grade over a panel: a light cyan wash, then the sunset fade. */
+function gradePanel(ctx, x, y, w, h) {
+  ctx.fillStyle = NEON.cyan;
+  ctx.fillRect(x, y, w, h);
+  fadeToClear(ctx, x, y, w, h);
 }
 
-/** Draws one photo cover-fit inside a polygon, with zoom and pan offsets. */
-function drawPanelPhoto(ctx, poly, photo, zoom, offsetX, offsetY) {
-  const xs = poly.map((p) => p[0]);
-  const ys = poly.map((p) => p[1]);
-  const x = Math.min(...xs);
-  const y = Math.min(...ys);
-  const w = Math.max(...xs) - x;
-  const h = Math.max(...ys) - y;
+/** An empty panel: a deep-violet neon gradient, no photo, no fake face. */
+function drawEmptyPanel(ctx, x, y, w, h) {
+  const g = ctx.createLinearGradient(x, y, x + w, y + h);
+  g.addColorStop(0, "#2a1140");
+  g.addColorStop(0.55, "#1d0b2e");
+  g.addColorStop(1, "#12061c");
+  ctx.fillStyle = g;
+  ctx.fillRect(x, y, w, h);
+  gradePanel(ctx, x, y, w, h);
+}
+
+/**
+ * One panel: the photo cover-fit with its focus point, the neon grade,
+ * and a thin dark seam so neighbouring panels read apart.
+ */
+export function drawPanel(ctx, panel, rect) {
+  const { x, y, w, h } = rect;
   ctx.save();
   ctx.beginPath();
-  poly.forEach(([px, py], i) => (i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py)));
-  ctx.closePath();
+  ctx.rect(x, y, w, h);
   ctx.clip();
-  if (photo) {
-    const scale = Math.max(w / photo.naturalWidth, h / photo.naturalHeight) * zoom;
-    const dw = photo.naturalWidth * scale;
-    const dh = photo.naturalHeight * scale;
-    const maxX = Math.max(0, (dw - w) / 2 / dw);
-    const maxY = Math.max(0, (dh - h) / 2 / dh);
-    const ox = Math.max(-maxX, Math.min(maxX, offsetX));
-    const oy = Math.max(-maxY, Math.min(maxY, offsetY));
-    ctx.drawImage(photo, x + (w - dw) / 2 + ox * dw, y + (h - dh) / 2 + oy * dh, dw, dh);
+  if (panel && panel.img) {
+    const src = fitSource(panel.img.naturalWidth, panel.img.naturalHeight, w, h, panel.focusY ?? 0.5);
+    ctx.drawImage(panel.img, src.sx, src.sy, src.sw, src.sh, x, y, w, h);
+    gradePanel(ctx, x, y, w, h);
   } else {
-    ctx.fillStyle = '#2a1638';
-    ctx.fillRect(x, y, w, h);
-    ctx.fillStyle = '#5c4a72';
-    ctx.font = `600 ${Math.round(h * 0.045)}px system-ui, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.fillText('ADD A PHOTO', x + w / 2, y + h / 2);
+    drawEmptyPanel(ctx, x, y, w, h);
   }
   ctx.restore();
+  ctx.strokeStyle = "rgba(18, 6, 28, 0.9)";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
 }
 
-/** The grade wash, sun glow and vignette over the whole cover. */
-function applyGrade(ctx, width, height, grade) {
-  const wash = ctx.createLinearGradient(0, 0, width * 0.25, height);
-  wash.addColorStop(0, grade.wash[0]);
-  wash.addColorStop(1, grade.wash[1]);
-  ctx.fillStyle = wash;
-  ctx.fillRect(0, 0, width, height);
-  const glow = ctx.createRadialGradient(
-    width * 0.74, height * 0.16, 0,
-    width * 0.74, height * 0.16, width * 0.34,
-  );
-  glow.addColorStop(0, grade.glow);
-  glow.addColorStop(1, fadeToClear(grade.glow));
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, width, height);
-  const vignette = ctx.createRadialGradient(
-    width / 2, height / 2, Math.min(width, height) * 0.36,
-    width / 2, height / 2, Math.max(width, height) * 0.72,
-  );
-  vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
-  vignette.addColorStop(1, 'rgba(0, 0, 0, 0.38)');
-  ctx.fillStyle = vignette;
-  ctx.fillRect(0, 0, width, height);
-}
-
-/** Greedy word wrap into at most two lines that fit the given width. */
-function wrapCaption(ctx, text, maxWidth) {
-  const words = text.split(/\s+/).filter(Boolean);
-  const lines = [];
-  let line = '';
-  for (const word of words) {
-    const next = line ? `${line} ${word}` : word;
-    if (ctx.measureText(next).width <= maxWidth || !line) {
-      line = next;
+/** Split a caption into at most two lines that each fit maxWidth. */
+function wrapCaption(ctx, caption, maxWidth) {
+  const words = caption.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [""];
+  const lines = [words[0]];
+  for (const word of words.slice(1)) {
+    const last = lines[lines.length - 1];
+    if (lines.length < 2 && ctx.measureText(`${last} ${word}`).width <= maxWidth) {
+      lines[lines.length - 1] = `${last} ${word}`;
+    } else if (lines.length < 2) {
+      lines.push(word);
     } else {
-      lines.push(line);
-      line = word;
-    }
-    if (lines.length === 1 && line && ctx.measureText(line).width > maxWidth) {
-      lines.push(line);
-      line = '';
-      break;
+      lines[lines.length - 1] = `${lines[lines.length - 1]} ${word}`;
     }
   }
-  if (line) lines.push(line);
-  return lines.slice(0, 2);
-}
-
-/** The tagline up top and the big caption centred in its own strip. */
-function drawCaptionLettering(ctx, width, height, band, caption, tagline) {
-  // The strip: a solid dark panel with a magenta rule on its top edge. The
-  // caption lives inside it, so it can never cover a face in the photos.
-  ctx.fillStyle = '#12061c';
-  ctx.fillRect(band.x, band.y, band.width, band.height);
-  ctx.fillStyle = '#ff4fa8';
-  ctx.fillRect(band.x, band.y, band.width, 4);
-
-  const tag = tagline.trim().toUpperCase();
-  if (tag) {
-    const tagSize = Math.round(height * 0.024);
-    ctx.font = `700 ${tagSize}px system-ui, sans-serif`;
-    try { ctx.letterSpacing = '6px'; } catch { /* older canvas: no tracking */ }
-    ctx.textAlign = 'left';
-    ctx.fillStyle = '#ffd9ec';
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
-    ctx.shadowBlur = tagSize * 0.4;
-    ctx.fillText(tag, width * 0.035, height * 0.055);
-    ctx.shadowBlur = 0;
-    try { ctx.letterSpacing = '0px'; } catch { /* reset */ }
-    ctx.fillStyle = '#ff4fa8';
-    ctx.fillRect(width * 0.035, height * 0.068, width * 0.12, Math.max(3, height * 0.004));
-  }
-
-  const text = caption.trim().toUpperCase() || 'SUNSET HEIST';
-  const maxWidth = width * 0.92;
-  const maxBlockH = band.height * 0.86;
-  let size = Math.round(band.height * 0.55);
-  ctx.font = `${size}px Anton, "Arial Black", sans-serif`;
-  let lines = wrapCaption(ctx, text, maxWidth);
-  // Shrink until the caption fits the strip in both directions: at most two
-  // lines across, and the whole block inside 86% of the strip height.
-  while (size > 24) {
-    const lineHeight = size * 1.02;
-    const tooWide = lines.length > 2 || lines.some((l) => ctx.measureText(l).width > maxWidth);
-    const tooTall = lines.length * lineHeight > maxBlockH;
-    if (!tooWide && !tooTall) break;
-    size -= 4;
-    ctx.font = `${size}px Anton, "Arial Black", sans-serif`;
-    lines = wrapCaption(ctx, text, maxWidth);
-  }
-  ctx.textAlign = 'center';
-  ctx.lineJoin = 'round';
-  ctx.strokeStyle = '#12061c';
-  ctx.lineWidth = Math.max(4, size * 0.14);
-  ctx.fillStyle = '#ffffff';
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
-  ctx.shadowBlur = size * 0.18;
-  ctx.shadowOffsetY = size * 0.05;
-  const lineHeight = size * 1.02;
-  // Centre the text block vertically inside the strip.
-  const blockTop = band.y + (band.height - lines.length * lineHeight) / 2;
-  lines.forEach((lineText, i) => {
-    const baseline = blockTop + lineHeight * 0.8 + i * lineHeight;
-    ctx.strokeText(lineText, width / 2, baseline);
-    ctx.fillText(lineText, width / 2, baseline);
-  });
-  ctx.shadowBlur = 0;
-  ctx.shadowOffsetY = 0;
+  return lines;
 }
 
 /**
- * Draws the whole cover onto a canvas at the canvas's own size.
- * `state` is { sizeKey, grade, caption, tagline, panels: [{ img, zoom, ox, oy }] }.
- * A panel with no image draws an empty slot. Mono desaturates the panels.
+ * The caption strip: the solid band, its magenta rule, and the caption in
+ * Anton, white with a magenta glow, centred, shrunk until it fits.
  */
-export function drawCoverArt(canvas, state) {
-  const ctx = canvas.getContext('2d');
-  const { width, height } = canvas;
-  const layout = layoutPanels(width, height);
-  ctx.fillStyle = '#160a24';
-  ctx.fillRect(0, 0, width, height);
-  state.panels.forEach((panel, i) => {
-    drawPanelPhoto(ctx, layout.panels[i], panel.img, panel.zoom, panel.ox, panel.oy);
-  });
-  if (state.grade === 'mono') {
-    ctx.save();
-    ctx.globalCompositeOperation = 'saturation';
-    ctx.fillStyle = '#808080';
-    ctx.fillRect(0, 0, width, height);
-    ctx.restore();
+export function drawStrip(ctx, caption, w, h) {
+  const stripH = h * STRIP.height;
+  const y = h - stripH;
+  ctx.fillStyle = STRIP.bg;
+  ctx.fillRect(0, y, w, stripH);
+  ctx.fillStyle = STRIP.rule;
+  ctx.fillRect(0, y, w, STRIP.rulePx);
+  const text = (caption || "").trim().toUpperCase();
+  if (text === "") return;
+  const maxWidth = w * 0.9;
+  let size = Math.round(stripH * 0.52);
+  let lines = [text];
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  for (;;) {
+    ctx.font = `${size}px Anton, "Arial Black", sans-serif`;
+    lines = wrapCaption(ctx, text, maxWidth);
+    const widest = Math.max(...lines.map((line) => ctx.measureText(line).width));
+    const fitsWidth = widest <= maxWidth;
+    const fitsHeight = lines.length * size * 1.15 <= stripH - STRIP.rulePx - 8;
+    if ((fitsWidth && fitsHeight) || size <= 18) break;
+    size = Math.max(18, Math.round(size * 0.92));
   }
-  applyGrade(ctx, width, height, GRADES[state.grade] ?? GRADES.sunset);
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = layout.gutter;
-  ctx.lineCap = 'round';
-  layout.seams.forEach(([a, b]) => {
-    ctx.beginPath();
-    ctx.moveTo(a[0], a[1]);
-    ctx.lineTo(b[0], b[1]);
-    ctx.stroke();
-  });
-  drawCaptionLettering(ctx, width, height, layout.band, state.caption, state.tagline);
-  return layout;
+  ctx.font = `${size}px Anton, "Arial Black", sans-serif`;
+  ctx.shadowColor = NEON.glow;
+  ctx.shadowBlur = Math.round(stripH * 0.16);
+  ctx.fillStyle = "#fff7ec";
+  const gap = size * 1.12;
+  const firstY = y + stripH / 2 - ((lines.length - 1) * gap) / 2;
+  lines.forEach((line, i) => ctx.fillText(line, w / 2, firstY + i * gap));
+  ctx.shadowBlur = 0;
+}
+
+/**
+ * Draw the whole cover on canvas from state:
+ * { size, caption, panels: [{ img, focusY } | null, ...] }.
+ * Resizes the canvas to the chosen export size first.
+ */
+export function drawCover(canvas, state) {
+  const size = SIZES[state.size] ?? SIZES.portrait;
+  canvas.width = size.w;
+  canvas.height = size.h;
+  const ctx = canvas.getContext("2d");
+  const rects = panelLayout(size.w, size.h);
+  rects.forEach((rect, i) => drawPanel(ctx, state.panels[i] ?? null, rect));
+  drawStrip(ctx, state.caption, size.w, size.h);
+  return { w: size.w, h: size.h };
 }

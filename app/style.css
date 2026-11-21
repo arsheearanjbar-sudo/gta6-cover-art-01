@@ -1,184 +1,304 @@
+/* Neon Sunset Cover Studio — the editor's styles.
+   The cover itself is drawn on a canvas (see src/cover.js); this sheet
+   styles the editor around it and carries the same caption-strip colours
+   so the strip reads the same in the editor and on the cover. */
+
+:root {
+  /* The caption strip: solid deep violet, magenta rule on top. */
+  --strip-bg: #12061c;
+  --strip-rule: #ff4fa8;
+  /* The neon grade the cover uses. */
+  --cyan-wash: rgba(0, 229, 255, 0.14);
+  --magenta-glow: rgba(255, 79, 168, 0.42);
+  --gold: #ffb347;
+  --sunset: #ff7a3d;
+  --paper: #fff7ec;
+  --panel: #1d0b2e;
+  --line: #3a1550;
+  --text: #f5eefb;
+  --muted: #c9a8d8;
+  --field: #2a1140;
+}
+
+* { box-sizing: border-box; }
+
+html { color-scheme: dark; }
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(1200px 500px at 80% -10%, rgba(255, 79, 168, 0.22), transparent 60%),
+    radial-gradient(900px 480px at 10% 0%, rgba(0, 229, 255, 0.12), transparent 55%),
+    #0d0416;
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.45;
+}
+
+/* Anton is the cover's caption face; the editor uses it for the masthead too. */
 @font-face {
-  font-family: 'Anton';
-  src: url('./fonts/Anton-Regular.ttf') format('truetype');
+  font-family: "Anton";
+  src: url("fonts/Anton-Regular.ttf") format("truetype");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
 
-* { box-sizing: border-box; }
-html, body { margin: 0; min-height: 100%; }
-body {
-  background: #120a1c;
-  color: #f4eef7;
-  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
-}
-
-.studio {
-  display: flex;
-  gap: 28px;
-  align-items: flex-start;
-  justify-content: center;
-  max-width: 1280px;
+.masthead {
+  max-width: 1080px;
   margin: 0 auto;
-  padding: 28px 24px 40px;
+  padding: 28px 20px 8px;
 }
 
-.panel-controls { width: 340px; flex: none; }
-.panel-controls h1 {
-  margin: 0 0 6px;
-  font-family: 'Anton', "Arial Black", sans-serif;
-  font-size: 34px;
-  line-height: 1.05;
-  letter-spacing: 1px;
+.masthead h1 {
+  margin: 0;
+  font-family: "Anton", "Arial Black", sans-serif;
+  font-size: clamp(34px, 6vw, 58px);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  line-height: 1.02;
   text-transform: uppercase;
-  color: #ffb3d9;
-  text-shadow: 0 0 18px rgba(255, 80, 170, 0.55);
+  color: var(--paper);
+  text-shadow:
+    0 0 18px var(--magenta-glow),
+    0 2px 0 rgba(0, 0, 0, 0.45);
 }
-.intro { margin: 0 0 18px; color: #cfc4d8; }
 
-.control-group {
-  margin: 0 0 16px;
-  padding: 14px;
-  border: 1px solid #3a2a4d;
-  border-radius: 10px;
-  background: #1b1026;
+.masthead h1 span {
+  color: var(--gold);
 }
-.control-group legend {
-  padding: 0 6px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+
+.tagline {
+  margin: 10px 0 0;
+  max-width: 62ch;
+  color: var(--muted);
+}
+
+.app {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 18px 20px 48px;
+  display: grid;
+  gap: 18px;
+}
+
+/* ---- Toolbar ---------------------------------------------------------- */
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 22px;
+  align-items: flex-end;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+
+.group { display: grid; gap: 7px; }
+
+.label {
   font-size: 12px;
-  color: #ffb3d9;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
-.control-group .hint { font-weight: 400; text-transform: none; letter-spacing: 0; color: #9d8fb0; }
 
-.choices { display: flex; flex-direction: column; gap: 8px; }
-.choices label {
-  display: flex;
-  justify-content: space-between;
+.samples, .sizes { display: flex; flex-wrap: wrap; gap: 8px; }
+
+button {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--field);
+  color: var(--text);
+  border-radius: 9px;
+  padding: 8px 13px;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+button:hover { border-color: var(--magenta); }
+
+button[aria-pressed="true"] {
+  background: var(--magenta);
+  border-color: var(--magenta);
+  color: #1a0410;
+  font-weight: 700;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.upload {
+  display: inline-block;
+  border: 1px dashed var(--magenta);
+  border-radius: 9px;
+  padding: 8px 13px;
+  font-size: 14px;
+  cursor: pointer;
+  background: rgba(255, 79, 168, 0.08);
+}
+
+.upload input { display: none; }
+
+.actions { margin-left: auto; display: flex; gap: 8px; }
+
+#exportBtn {
+  background: var(--magenta);
+  border-color: var(--magenta);
+  color: #1a0410;
+  font-weight: 700;
+}
+
+/* ---- Stage (the live cover preview) ----------------------------------- */
+
+.stage {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+}
+
+.stage canvas {
+  display: block;
+  max-width: 100%;
+  max-height: 72vh;
+  width: auto;
+  height: auto;
+  border-radius: 6px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 79, 168, 0.25);
+  background: var(--strip-bg);
+}
+
+.stage .hint { margin: 0; color: var(--muted); font-size: 13px; }
+
+/* ---- Caption strip ------------------------------------------------------
+   The strip at the bottom of the cover: the bottom 16% of the poster, a
+   solid deep-violet band with a 4px magenta rule on its top edge. The
+   caption sits on it, never over a face. The editor's caption bar wears
+   the same strip so what you type is what the cover shows. */
+
+.caption-strip {
+  background: var(--strip-bg);
+  border-top: 4px solid var(--strip-rule);
+  border-radius: 0 0 14px 14px;
+  padding: 14px 16px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
   align-items: center;
-  padding: 8px 10px;
-  border: 1px solid #3a2a4d;
-  border-radius: 8px;
-  cursor: pointer;
-  background: #241638;
 }
-.choices label span { color: #9d8fb0; font-size: 13px; }
-.choices input[type="radio"] { accent-color: #ff4fa8; }
 
-.grades { flex-direction: row; flex-wrap: wrap; }
-.grade-button {
-  flex: 1 1 40%;
-  padding: 9px 6px;
-  border: 1px solid #3a2a4d;
-  border-radius: 8px;
-  background: #241638;
-  color: #f4eef7;
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
+.caption-strip label {
+  font-family: "Anton", "Arial Black", sans-serif;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--paper);
 }
-.grade-button.is-active { border-color: #ff4fa8; background: #3a1a4d; box-shadow: 0 0 0 1px #ff4fa8; }
-.grade-sunset { border-top: 3px solid #ff7a3c; }
-.grade-neon { border-top: 3px solid #37e0ff; }
-.grade-dusk { border-top: 3px solid #b07cff; }
-.grade-mono { border-top: 3px solid #e8e8e8; }
 
-.panel-list { display: flex; gap: 8px; margin: 0 0 12px; padding: 0; list-style: none; }
-.panel-list li { flex: 1; }
-.panel-button {
+.caption-strip input {
   width: 100%;
-  padding: 8px 4px;
-  border: 1px solid #3a2a4d;
-  border-radius: 8px;
-  background: #241638;
-  color: #f4eef7;
-  font: inherit;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--paper);
+  font-family: "Anton", "Arial Black", sans-serif;
+  font-size: 22px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-shadow: 0 0 14px var(--magenta-glow);
+}
+
+.caption-strip input::placeholder { color: rgba(245, 238, 251, 0.4); }
+
+.caption-strip .hint {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
   font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
 }
-.panel-button.is-selected { border-color: #37e0ff; background: #12303a; box-shadow: 0 0 0 1px #37e0ff; }
 
-label { display: flex; flex-direction: column; gap: 6px; font-weight: 600; margin-bottom: 10px; }
-label:last-child { margin-bottom: 0; }
-input[type="text"] {
-  font: inherit;
-  padding: 9px 10px;
-  border: 1px solid #3a2a4d;
-  border-radius: 8px;
-  background: #120a1c;
-  color: #f4eef7;
+/* ---- Panels ------------------------------------------------------------- */
+
+.panels {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px;
 }
-input[type="file"] { font: inherit; font-size: 13px; color: #cfc4d8; }
-.file-label { margin-bottom: 10px; }
-.slider-label { margin: 12px 0 0; }
-input[type="range"] { width: 100%; accent-color: #ff4fa8; }
 
-.sample-row { display: flex; align-items: center; gap: 8px; margin: 4px 0 2px; color: #9d8fb0; font-size: 13px; }
-.sample-button, .secondary-button {
-  padding: 7px 12px;
-  border: 1px solid #3a2a4d;
-  border-radius: 8px;
-  background: #241638;
-  color: #f4eef7;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
+.panels h2 {
+  margin: 0 0 4px;
+  font-family: "Anton", "Arial Black", sans-serif;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 20px;
 }
-.secondary-button { width: 100%; margin-top: 12px; }
-.hint { margin: 10px 0 0; color: #9d8fb0; font-size: 13px; }
 
-.export-button {
-  width: 100%;
-  padding: 14px;
-  border: 0;
+.panels > .hint { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+
+.panel-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.panel-card {
+  border: 1px solid var(--line);
   border-radius: 10px;
-  background: linear-gradient(90deg, #ff4fa8, #ff7a3c);
-  color: #fff;
-  font: inherit;
-  font-size: 17px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
+  padding: 10px 12px;
+  display: grid;
+  gap: 8px;
+  background: var(--field);
   cursor: pointer;
-  box-shadow: 0 6px 24px rgba(255, 79, 168, 0.4);
 }
-.export-button:hover { filter: brightness(1.08); }
-#statusLine { min-height: 22px; margin: 10px 0 0; color: #7dffc4; }
-.credit { margin: 14px 0 0; color: #6f6480; font-size: 12px; }
 
-.preview-column { flex: 1; min-width: 0; }
-.preview-wrap {
-  position: relative;
-  width: min(100%, 640px);
-  margin: 0 auto;
-  border-radius: 12px;
+.panel-card[aria-pressed="true"] {
+  border-color: var(--magenta);
+  box-shadow: 0 0 0 1px var(--magenta), 0 0 18px var(--magenta-glow);
+}
+
+.panel-card .name {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.panel-card .photo {
+  color: var(--muted);
+  font-size: 13px;
   overflow: hidden;
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-#previewCanvas { display: block; width: 100%; height: auto; cursor: grab; touch-action: none; }
-#previewCanvas:active { cursor: grabbing; }
-.selection-overlay {
-  position: absolute;
-  border: 3px dashed #37e0ff;
-  border-radius: 4px;
-  pointer-events: none;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+
+.panel-card .remove {
+  justify-self: start;
+  padding: 5px 10px;
+  font-size: 13px;
 }
-.preview-hint { text-align: center; color: #9d8fb0; font-size: 13px; }
 
-body.shot-cover { background: #000; }
-body.shot-cover .panel-controls, body.shot-cover .preview-hint { display: none; }
-body.shot-cover .studio { display: block; max-width: none; margin: 0; padding: 0; }
-body.shot-cover .preview-column { width: 100%; }
-body.shot-cover .preview-wrap { width: 100%; max-width: none; border-radius: 0; box-shadow: none; }
-body.shot-cover #previewCanvas { width: 100vw; height: 100vh; object-fit: contain; background: #000; }
-body.shot-cover .selection-overlay { display: none; }
+/* ---- Footer ------------------------------------------------------------- */
 
-@media (max-width: 900px) {
-  .studio { flex-direction: column; }
-  .panel-controls { width: 100%; }
+.foot {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 20px 40px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+@media (max-width: 640px) {
+  .caption-strip { grid-template-columns: 1fr; }
+  .actions { margin-left: 0; }
 }

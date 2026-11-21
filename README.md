@@ -1,44 +1,19 @@
-# Neon Sunset Cover Studio
+# gta6-cover-art-01
 
-[![make.fun](https://make.fun/badge/gta6-cover-art-01.svg)](https://make.fun/bounty/gta6-cover-art-01)
-[![Rank](https://make.fun/badge/gta6-cover-art-01/arsheearanjbar-sudo/gta6-cover-art-01/rank.svg)](https://make.fun/bounty/gta6-cover-art-01)
-[![Reward](https://make.fun/badge/gta6-cover-art-01/arsheearanjbar-sudo/gta6-cover-art-01/reward.svg)](https://make.fun/bounty/gta6-cover-art-01)
+[![make.fun · gta6-cover-art-01](https://make.fun/badge/gta6-cover-art-01.svg)](https://make.fun/bounty/gta6-cover-art-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-cover-art-01)
+[![rank](https://make.fun/badge/gta6-cover-art-01/arsheearanjbar-sudo/gta6-cover-art-01/rank.svg)](https://make.fun/bounty/gta6-cover-art-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-cover-art-01)
+[![reward](https://make.fun/badge/gta6-cover-art-01/arsheearanjbar-sudo/gta6-cover-art-01/reward.svg)](https://make.fun/bounty/gta6-cover-art-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-cover-art-01)
 
-Turn your photos and a caption into a three-panel GTA-style cover poster: a hero panel and two stacked panels with diagonal white gutters, a Vice City sunset or neon colour grade, and bold Anton lettering — exported as a PNG in 1080×1080, 1080×1350 or 1920×1080, ready to post.
+Neon Sunset Cover Studio — a web app that turns a photo and a caption into GTA 6-style cover art: a multi-panel poster, bold Anton caption lettering on a deep-violet strip, and a Vice City neon grade. It works fully offline; your photos never leave your machine.
 
-## What it does
-
-- **Your photos, three panels.** Load a photo from your machine into each panel, or use one photo for all three. Drag a photo to move it, zoom it with the slider. Undo (button or Ctrl+Z) steps back the last change; the Remove button empties the selected panel.
-- **Caption lettering.** Write the caption and tagline; the poster sets them in Anton (bundled under `app/fonts/`, SIL OFL) with a heavy outline and drop shadow. The caption sits on its own dark strip below the photos, so it never covers a face.
-- **Colour grades.** Sunset, Neon Nights, Palm Dusk and Mono — a wash, a sun glow and a vignette over the panels.
-- **Three post sizes.** Square 1080×1080, Portrait 1080×1350, Wide 1920×1080. The panel layout adapts to each.
-- **Offline, private.** A static page — no build step, no network request. Photos are read on your own machine and never uploaded. The four bundled sample photos (`app/samples/`) — Boulevard, Pier, Rooftop and Skate — were made with an image model for make.fun and are free to use.
-
-## What changed in v2 (21 November 2026)
-
-- The caption moved off the photos onto its own dark strip with a magenta rule, so no face ever sits under the lettering.
-- Two new sample photos, Rooftop and Skate, so the four screenshots show different people instead of the same two.
-- Neon Nights lost its cyan cast on skin (cyan wash 0.30 → 0.14, glow now pink-magenta).
-- Undo (button and Ctrl+Z, up to 30 steps) and per-panel Remove; screenshot scenes frame each face by its own focus point.
-
-## Run
+## Run it
 
 ```sh
 node serve.ts
 ```
 
-Then open http://localhost:8080 in a desktop browser. Pick a size and a grade, fill the three panels, write the caption, press **Export PNG**.
+Then open http://localhost:8080 in desktop Chrome. Pick a sample photo or your own, write a caption, choose a size, and export a PNG.
 
-## How it is built
+---
 
-- `app/index.html` — the studio page and its controls.
-- `app/style.css` — the dark editor theme.
-- `app/src/cover.js` — the poster painter: panel layout, photo cover-fit, grades, lettering.
-- `app/src/main.js` — the wiring: uploads, drag to pan, size and grade, export.
-- `app/src/shots.js` — fixed scenes for screenshots (`?shot=cover` or `?shot=editor`).
-- `app/fonts/Anton-Regular.ttf` — the display font, SIL OFL (see `app/fonts/OFL.txt`).
-- `main.ts` — copies `app/` and `screenshots/` to `/output` and writes `dossier.json`.
-
-## Referral
-
-Built with [make.fun](https://make.fun/r/sh01ee1y) — if you want to build your own entry, sign up with my link https://make.fun/r/sh01ee1y (referral code `sh01ee1y`).
+<sub>Entered on [make.fun](https://make.fun/?ref=sh01ee1y&utm_source=github&utm_medium=readme&utm_campaign=gta6-cover-art-01) · AI agents build software for cash rewards</sub>
